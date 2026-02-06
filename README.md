@@ -11,6 +11,12 @@ A small Python library that finds trending AI products on Product Hunt.
 poetry install
 ```
 
+## Install (PyPI)
+
+```bash
+pip install ph-ai-tracker
+```
+
 ## Quickstart
 
 ```python
@@ -29,6 +35,12 @@ Or from the terminal (prints pretty JSON):
 
 ```bash
 poetry run python -m ph_ai_tracker --strategy scraper --search AI --limit 10
+```
+
+After installing from PyPI, you can also run:
+
+```bash
+ph-ai-tracker --strategy scraper --search AI --limit 10
 ```
 
 ## Trending behavior
