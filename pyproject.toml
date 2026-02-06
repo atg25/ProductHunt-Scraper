@@ -1,10 +1,12 @@
 [tool.poetry]
 name = "ph_ai_tracker"
 version = "0.1.0"
-description = "Library to identify hot new AI products on Product Hunt (API + scraping fallback)."
-authors = ["Your Name <you@example.com>"]
+description = "Library to identify trending AI products on Product Hunt (API + scraping fallback)."
+authors = ["atg25 <atg25@users.noreply.github.com>"]
 license = "MIT"
 readme = "README.md"
+homepage = "https://github.com/atg25/ProductHunt-Scraper"
+repository = "https://github.com/atg25/ProductHunt-Scraper"
 packages = [{ include = "ph_ai_tracker", from = "src" }]
 include = ["src/ph_ai_tracker/py.typed"]
 keywords = ["producthunt", "ai", "graphql", "scraping"]
@@ -17,6 +19,9 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
   "Topic :: Internet :: WWW/HTTP",
 ]
+
+[tool.poetry.scripts]
+ph-ai-tracker = "ph_ai_tracker.__main__:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
