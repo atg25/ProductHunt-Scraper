@@ -1,0 +1,38 @@
+[tool.poetry]
+name = "ph_ai_tracker"
+version = "0.1.0"
+description = "Library to identify hot new AI products on Product Hunt (API + scraping fallback)."
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{ include = "ph_ai_tracker", from = "src" }]
+include = ["src/ph_ai_tracker/py.typed"]
+keywords = ["producthunt", "ai", "graphql", "scraping"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Topic :: Internet :: WWW/HTTP",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+httpx = "^0.27.0"
+beautifulsoup4 = "^4.12.3"
+lxml = "^5.2.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-cov = "^5.0.0"
+pytest-mock = "^3.14.0"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"

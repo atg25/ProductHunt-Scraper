@@ -1,0 +1,20 @@
+{
+  "data": {
+    "posts": {
+      "edges": [
+        {
+          "node": {
+            "name": "AlphaAI",
+            "tagline": "AI copilot for everything",
+            "description": "A tool that helps you do things with AI.",
+            "votesCount": 123,
+            "url": "https://www.producthunt.com/posts/alphaai",
+            "topics": {
+              "edges": [{ "node": { "name": "Artificial Intelligence" } }]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
