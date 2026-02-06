@@ -2,8 +2,9 @@ name: Publish
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   build-and-publish:
@@ -26,11 +27,56 @@ jobs:
           python -m pip install --upgrade pip
           pip install poetry
 
+      - name: Get version
+        id: version
+        run: |
+          echo "version=$(poetry version -s)" >> "$GITHUB_OUTPUT"
+
+      - name: Check if version exists on PyPI
+        id: pypi
+        env:
+          PROJECT_NAME: ph-ai-tracker
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
+
+          project = os.environ["PROJECT_NAME"]
+          version = os.environ["VERSION"]
+          url = f"https://pypi.org/pypi/{project}/json"
+
+          try:
+            with urllib.request.urlopen(url, timeout=20) as resp:
+              data = json.load(resp)
+          except urllib.error.HTTPError as e:
+            if e.code == 404:
+              data = {"releases": {}}
+            else:
+              raise
+
+          releases = data.get("releases") or {}
+          should_publish = version not in releases
+          sys.stdout.write(f"project={project} version={version} should_publish={should_publish}\n")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+            f.write(f"should_publish={'true' if should_publish else 'false'}\n")
+          PY
+
       - name: Build distributions
         run: |
           poetry build
 
       - name: Publish to PyPI (Trusted Publishing)
+        if: steps.pypi.outputs.should_publish == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+
+      - name: Skip publish (already on PyPI)
+        if: steps.pypi.outputs.should_publish != 'true'
+        run: |
+          echo "Version ${{ steps.version.outputs.version }} already exists on PyPI; skipping publish."
