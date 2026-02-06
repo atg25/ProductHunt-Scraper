@@ -286,9 +286,10 @@ files = [
 name = "lxml"
 version = "5.4.0"
 description = "Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API."
-optional = false
+optional = true
 python-versions = ">=3.6"
 groups = ["main"]
+markers = "extra == \"lxml\""
 files = [
     {file = "lxml-5.4.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:e7bc6df34d42322c5289e37e9971d6ed114e3776b45fa879f734bded9d1fea9c"},
     {file = "lxml-5.4.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:6854f8bd8a1536f8a1d9a3655e6354faa6406621cf857dc27b681b69860645c7"},
@@ -630,7 +631,10 @@ files = [
 ]
 markers = {dev = "python_version == \"3.10\""}
 
+[extras]
+lxml = ["lxml"]
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.15"
-content-hash = "e172aaf29d2573c8bdb0f36e39ad7a97fd954c80b7ec36aae2d3187bc92563c6"
+content-hash = "e2ac75abfcbcbd6a6f2756657129b86ebf306903e8685a9e3b69efda694e2dbb"

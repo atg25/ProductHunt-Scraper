@@ -7,7 +7,7 @@ import re
 from urllib.parse import urlparse
 
 import httpx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, FeatureNotFound
 
 from .exceptions import ScraperError
 from .models import Product
@@ -42,8 +42,15 @@ class ProductHuntScraper:
     def _url(self) -> str:
         return self._config.base_url.rstrip("/") + self._config.ai_path
 
+    def _soup(self, html: str) -> BeautifulSoup:
+        # Prefer lxml if installed; fall back to the stdlib parser.
+        try:
+            return BeautifulSoup(html, "lxml")
+        except FeatureNotFound:
+            return BeautifulSoup(html, "html.parser")
+
     def _extract_next_data_products(self, html: str) -> list[Product]:
-        soup = BeautifulSoup(html, "lxml")
+        soup = self._soup(html)
         script = soup.find("script", id="__NEXT_DATA__")
         if not script or not script.string:
             return []
@@ -104,7 +111,7 @@ class ProductHuntScraper:
 
     def _extract_dom_products(self, html: str) -> list[Product]:
         # Very soft fallback: attempt to find product-like anchors.
-        soup = BeautifulSoup(html, "lxml")
+        soup = self._soup(html)
         products: list[Product] = []
 
         for a in soup.find_all("a"):
@@ -152,7 +159,7 @@ class ProductHuntScraper:
             return product
 
         html = resp.text
-        soup = BeautifulSoup(html, "lxml")
+        soup = self._soup(html)
 
         def meta_content(**attrs: Any) -> str | None:
             tag = soup.find("meta", attrs=attrs)

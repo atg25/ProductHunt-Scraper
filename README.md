@@ -17,6 +17,12 @@ poetry install
 pip install ph-ai-tracker
 ```
 
+Optional (faster HTML parsing with lxml):
+
+```bash
+pip install "ph-ai-tracker[lxml]"
+```
+
 ## Quickstart
 
 ```python
