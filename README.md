@@ -63,3 +63,4 @@ poetry run python -m ph_ai_tracker --strategy api --search AI --limit 10
 
 - This project is intended to run well on PyPy 3.
 - All tests are offline and use mocks/fixtures (no real network).
+- Supported Python versions: 3.10–3.14
