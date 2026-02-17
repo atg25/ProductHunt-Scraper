@@ -25,3 +25,7 @@ class RateLimitError(APIError):
 
 class ScraperError(PhAITrackerError):
     pass
+
+
+class StorageError(PhAITrackerError):
+    pass

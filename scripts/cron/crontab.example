@@ -1,0 +1,7 @@
+# Environment
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TZ=UTC
+
+# Run every 6 hours
+0 */6 * * * cd /app && ph-ai-tracker-runner --strategy scraper --search AI --limit 20 --db-path /data/ph_ai_tracker.db

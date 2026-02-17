@@ -27,6 +27,7 @@ classifiers = [
 
 [tool.poetry.scripts]
 ph-ai-tracker = "ph_ai_tracker.__main__:main"
+ph-ai-tracker-runner = "ph_ai_tracker.scheduler:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.15"

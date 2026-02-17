@@ -1,0 +1,21 @@
+services:
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ph-ai-tracker-scheduler
+    restart: unless-stopped
+    environment:
+      CRON_SCHEDULE: ${CRON_SCHEDULE:-0 */6 * * *}
+      TZ: ${TZ:-UTC}
+      PH_AI_TRACKER_STRATEGY: ${PH_AI_TRACKER_STRATEGY:-scraper}
+      PH_AI_TRACKER_SEARCH: ${PH_AI_TRACKER_SEARCH:-AI}
+      PH_AI_TRACKER_LIMIT: ${PH_AI_TRACKER_LIMIT:-20}
+      PH_AI_DB_PATH: /data/ph_ai_tracker.db
+      PRODUCTHUNT_TOKEN: ${PRODUCTHUNT_TOKEN:-}
+    volumes:
+      - ph_ai_tracker_data:/data
+
+volumes:
+  ph_ai_tracker_data:
+    name: ph_ai_tracker_data

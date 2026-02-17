@@ -39,3 +39,5 @@ htmlcov/
 
 # Local artifacts
 output.json
+data/
+*.db
