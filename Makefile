@@ -1,4 +1,6 @@
-.PHONY: test run runner demo db-tables db-verify docker-build docker-up docker-down docker-logs
+BUNDLE_FILE := codebase_review_bundle.txt
+
+.PHONY: test run runner demo db-tables db-verify docker-build docker-up docker-down docker-logs bundle
 
 test:
 	poetry run pytest
@@ -29,3 +31,7 @@ docker-down:
 
 docker-logs:
 	docker compose logs -f scheduler
+
+bundle:
+	@echo "Building Uncle Bob review bundle…"
+	@.venv/bin/python scripts/build_bundle.py --out $(BUNDLE_FILE)

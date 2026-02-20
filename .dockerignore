@@ -9,4 +9,7 @@ __pycache__
 *.db
 output.json
 dist
+build
+*.egg-info
 sprints
+codebase_review_bundle.txt

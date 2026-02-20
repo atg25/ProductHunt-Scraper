@@ -9,6 +9,7 @@ import pytest
 from ph_ai_tracker.models import Product, TrackerResult
 from ph_ai_tracker.scheduler import SchedulerConfig, run_once, scheduler_config_from_env, validate_cron_schedule
 from ph_ai_tracker.tracker import AIProductTracker
+import ph_ai_tracker.scheduler as scheduler
 
 
 def test_validate_cron_schedule_valid_cases() -> None:
@@ -40,6 +41,32 @@ def test_scheduler_config_from_env_invalid_retry_attempts(monkeypatch: pytest.Mo
     monkeypatch.setenv("PH_AI_RETRY_ATTEMPTS", "oops")
     with pytest.raises(ValueError):
         scheduler_config_from_env()
+
+
+def test_parse_env_var_returns_cast_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PH_TEST_INT", "42")
+    assert scheduler._parse_env_var("PH_TEST_INT", 5, int) == 42
+
+
+def test_parse_env_var_uses_default_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PH_MISSING_INT", raising=False)
+    assert scheduler._parse_env_var("PH_MISSING_INT", 7, int) == 7
+
+
+def test_parse_env_var_raises_on_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PH_BAD_INT", "not-an-int")
+    with pytest.raises(ValueError, match="PH_BAD_INT"):
+        scheduler._parse_env_var("PH_BAD_INT", 0, int)
+
+
+def test_parse_int_env_still_parses(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PH_STILL_INT", "9")
+    assert scheduler._parse_int_env("PH_STILL_INT", 3) == 9
+
+
+def test_parse_float_env_still_parses(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PH_STILL_FLOAT", "3.14")
+    assert scheduler._parse_float_env("PH_STILL_FLOAT", 1.0) == 3.14
 
 
 def test_run_once_persists_to_sqlite(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -80,7 +107,7 @@ def test_run_once_retries_transient_error_then_succeeds(tmp_path: Path, monkeypa
     def fake_get_products(self, *, search_term: str = "AI", limit: int = 20) -> TrackerResult:
         calls.append(1)
         if len(calls) == 1:
-            return TrackerResult.failure(source="scraper", error="Scraper request timed out")
+            return TrackerResult.failure(source="scraper", error="Scraper request timed out", is_transient=True)
         return TrackerResult.success([Product(name="AlphaAI", votes_count=1)], source="scraper")
 
     monkeypatch.setattr(AIProductTracker, "get_products", fake_get_products)
@@ -107,7 +134,7 @@ def test_run_once_does_not_retry_non_transient_error(tmp_path: Path, monkeypatch
 
     def fake_get_products(self, *, search_term: str = "AI", limit: int = 20) -> TrackerResult:
         calls.append(1)
-        return TrackerResult.failure(source="api", error="Missing api_token")
+        return TrackerResult.failure(source="api", error="Missing api_token", is_transient=False)
 
     monkeypatch.setattr(AIProductTracker, "get_products", fake_get_products)
     monkeypatch.setattr(time, "sleep", lambda *_args, **_kwargs: None)

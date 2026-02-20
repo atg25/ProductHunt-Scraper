@@ -41,3 +41,5 @@ htmlcov/
 output.json
 data/
 *.db
+codebase_review_bundle.txt
+build/

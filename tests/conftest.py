@@ -30,3 +30,18 @@ def scraper_html(fixtures_dir: Path) -> str:
 @pytest.fixture
 def scraper_dom_html(fixtures_dir: Path) -> str:
     return (fixtures_dir / "scraper_page_dom.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def scraper_next_data_malformed_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "scraper_next_data_malformed.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def scraper_next_data_no_posts_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "scraper_next_data_no_posts.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def scraper_dom_nav_only_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "scraper_dom_nav_only.html").read_text(encoding="utf-8")

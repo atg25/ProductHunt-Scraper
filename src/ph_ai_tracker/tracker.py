@@ -1,79 +1,61 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
 
-from .api_client import APIConfig, ProductHuntAPI
+from .constants import DEFAULT_LIMIT, DEFAULT_SEARCH_TERM
 from .exceptions import APIError, RateLimitError, ScraperError
 from .models import TrackerResult
-from .scraper import ProductHuntScraper, ScraperConfig
+from .protocols import ProductProvider
 
-
-@dataclass(frozen=True, slots=True)
-class TrackerConfig:
-    strategy: str = "auto"  # api | scraper | auto
+_log = logging.getLogger(__name__)
 
 
 class AIProductTracker:
-    def __init__(
-        self,
-        *,
-        api_token: str | None = None,
-        strategy: str = "auto",
-        api_config: APIConfig | None = None,
-        scraper_config: ScraperConfig | None = None,
-    ) -> None:
-        self._api_token = api_token
-        self._config = TrackerConfig(strategy=strategy)
-        self._api_config = api_config
-        self._scraper_config = scraper_config
+    """Use-case facade: fetch AI products from a single injected provider.
 
-    def get_products(self, *, search_term: str = "AI", limit: int = 20) -> TrackerResult:
-        strategy = (self._config.strategy or "auto").lower()
+    The caller selects a strategy by constructing the correct ``ProductProvider``
+    (a plain adapter, ``FallbackProvider``, or ``_NoTokenProvider``) and passing
+    it here.  ``AIProductTracker`` itself knows nothing about strategy names,
+    tokens, or fallback sequences.
 
-        if strategy not in {"api", "scraper", "auto"}:
-            return TrackerResult.failure(source=strategy, error=f"Unknown strategy: {strategy}")
+    Invariant: ``get_products`` never raises known domain exceptions
+    (``RateLimitError``, ``ScraperError``, ``APIError``); these outcomes are
+    captured in the returned ``TrackerResult``. ``TrackerResult.is_transient``
+    marks retry-safe failures. Unexpected failures may still propagate.
+    """
 
-        if strategy == "api":
-            return self._from_api(search_term=search_term, limit=limit)
+    def __init__(self, *, provider: ProductProvider) -> None:
+        self._provider = provider
 
-        if strategy == "scraper":
-            return self._from_scraper(search_term=search_term, limit=limit)
-
-        # auto
-        api_result = self._from_api(search_term=search_term, limit=limit)
-        if api_result.error is None:
-            return api_result
-
-        scraper_result = self._from_scraper(search_term=search_term, limit=limit)
-        if scraper_result.error is None:
-            return scraper_result
-
+    def _failure_result(self, exc: Exception, *, search_term: str, limit: int) -> TrackerResult:
+        if isinstance(exc, RateLimitError):
+            error_text = f"Rate limited: {exc}"
+            is_transient = True
+        elif isinstance(exc, ScraperError):
+            error_text = str(exc)
+            is_transient = True
+        else:
+            error_text = str(exc)
+            is_transient = False
         return TrackerResult.failure(
-            source="auto",
-            error=f"API failed: {api_result.error}; Scraper failed: {scraper_result.error}",
+            source=self._provider.source_name,
+            error=error_text,
+            is_transient=is_transient,
+            search_term=search_term,
+            limit=limit,
         )
 
-    def _from_api(self, *, search_term: str, limit: int) -> TrackerResult:
-        if not self._api_token:
-            return TrackerResult.failure(source="api", error="Missing api_token")
-
-        api = ProductHuntAPI(self._api_token, config=self._api_config)
+    def get_products(self, *, search_term: str = DEFAULT_SEARCH_TERM, limit: int = DEFAULT_LIMIT) -> TrackerResult:
+        """Delegate to provider; map known domain exceptions to TrackerResult failures."""
         try:
-            products = api.fetch_ai_products(search_term=search_term, limit=limit)
-            return TrackerResult.success(products, source="api")
-        except RateLimitError as exc:
-            return TrackerResult.failure(source="api", error=f"Rate limited: {exc}")
-        except APIError as exc:
-            return TrackerResult.failure(source="api", error=str(exc))
+            products = self._provider.fetch_products(search_term=search_term, limit=limit)
+            return TrackerResult.success(
+                products,
+                source=self._provider.source_name,
+                search_term=search_term,
+                limit=limit,
+            )
+        except (RateLimitError, ScraperError, APIError) as exc:
+            return self._failure_result(exc, search_term=search_term, limit=limit)
         finally:
-            api.close()
-
-    def _from_scraper(self, *, search_term: str, limit: int) -> TrackerResult:
-        scraper = ProductHuntScraper(config=self._scraper_config)
-        try:
-            products = scraper.scrape_ai_products(search_term=search_term, limit=limit)
-            return TrackerResult.success(products, source="scraper")
-        except ScraperError as exc:
-            return TrackerResult.failure(source="scraper", error=str(exc))
-        finally:
-            scraper.close()
+            self._provider.close()
