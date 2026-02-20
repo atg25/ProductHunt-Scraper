@@ -6,7 +6,7 @@ services:
     container_name: ph-ai-tracker-scheduler
     restart: unless-stopped
     environment:
-      CRON_SCHEDULE: ${CRON_SCHEDULE:-0 */6 * * *}
+      CRON_SCHEDULE: ${CRON_SCHEDULE:-0 8 * * *}
       TZ: ${TZ:-UTC}
       PH_AI_TRACKER_STRATEGY: ${PH_AI_TRACKER_STRATEGY:-scraper}
       PH_AI_TRACKER_SEARCH: ${PH_AI_TRACKER_SEARCH:-AI}
