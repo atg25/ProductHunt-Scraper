@@ -113,8 +113,8 @@ def test_storage_save_result_size() -> None:
     _assert_under_limit("storage", "SQLiteStore", "save_result")
 
 
-def test_storage_upsert_product_size() -> None:
-    _assert_under_limit("storage", "SQLiteStore", "_upsert_product")
+def test_storage_insert_products_size() -> None:
+    _assert_under_limit("storage", "SQLiteStore", "_insert_products")
 
 
 # tracker.py

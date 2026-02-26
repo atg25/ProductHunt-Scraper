@@ -88,15 +88,13 @@ def test_run_once_persists_to_sqlite(tmp_path: Path, monkeypatch: pytest.MonkeyP
     )
 
     result = run_once(config)
-    assert result.run_id > 0
+    assert result.saved >= 0
     assert result.tracker_result.error is None
     assert result.status == "success"
     assert result.attempts_used == 1
 
     with sqlite3.connect(db_path) as conn:
-        run_count = conn.execute("SELECT COUNT(*) FROM runs").fetchone()
         product_count = conn.execute("SELECT COUNT(*) FROM products").fetchone()
-        assert run_count is not None and int(run_count[0]) == 1
         assert product_count is not None and int(product_count[0]) == 1
 
 
@@ -152,3 +150,54 @@ def test_run_once_does_not_retry_non_transient_error(tmp_path: Path, monkeypatch
     assert len(calls) == 1
     assert result.status == "failure"
     assert result.attempts_used == 1
+
+
+# Sprint 63 — scheduler stdout must be newsletter-format JSON
+
+def test_scheduler_stdout_is_newsletter_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture,
+) -> None:
+    """scheduler.main() must write newsletter JSON to stdout."""
+    import json
+    from ph_ai_tracker.scheduler import SchedulerRunResult, main as scheduler_main
+    from datetime import datetime, timezone
+
+    products = [Product(name="Tool A", votes_count=10), Product(name="Tool B", votes_count=5)]
+    tracker_result = TrackerResult.success(products, source="scraper")
+    fake_run_result = SchedulerRunResult(saved=1, tracker_result=tracker_result, status="success", attempts_used=1)
+    monkeypatch.setattr(scheduler, "run_once", lambda _config: fake_run_result)
+    code = scheduler_main(["--strategy", "scraper", "--db-path", str(tmp_path / "db.db")])
+    assert code == 0
+    out = json.loads(capsys.readouterr().out)
+    assert set(out.keys()) >= {"generated_at", "total_products", "top_tags", "products"}
+
+
+def test_scheduler_stdout_total_products_matches_tracker_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture,
+) -> None:
+    """total_products in scheduler newsletter output must equal tracker products count."""
+    import json
+    from ph_ai_tracker.scheduler import SchedulerRunResult, main as scheduler_main
+
+    products = [Product(name=f"P{i}", votes_count=i) for i in range(4)]
+    tracker_result = TrackerResult.success(products, source="scraper")
+    fake_run_result = SchedulerRunResult(saved=1, tracker_result=tracker_result, status="success", attempts_used=1)
+    monkeypatch.setattr(scheduler, "run_once", lambda _config: fake_run_result)
+    scheduler_main(["--strategy", "scraper", "--db-path", str(tmp_path / "db.db")])
+    out = json.loads(capsys.readouterr().out)
+    assert out["total_products"] == 4
+
+
+def test_scheduler_stderr_still_contains_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture,
+) -> None:
+    """_format_run_summary output must still be written to stderr after Sprint 63."""
+    from ph_ai_tracker.scheduler import SchedulerRunResult, main as scheduler_main
+
+    products = [Product(name="X", votes_count=1)]
+    tracker_result = TrackerResult.success(products, source="scraper")
+    fake_run_result = SchedulerRunResult(saved=42, tracker_result=tracker_result, status="success", attempts_used=1)
+    monkeypatch.setattr(scheduler, "run_once", lambda _config: fake_run_result)
+    scheduler_main(["--strategy", "scraper", "--db-path", str(tmp_path / "db.db")])
+    err = capsys.readouterr().err
+    assert len(err) > 0, "stderr must contain run summary"

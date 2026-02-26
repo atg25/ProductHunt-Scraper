@@ -9,8 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from typing import Any, Iterable
 import json
+import re
+import string
 
 
 def _coerce_topics(raw: Any) -> tuple[str, ...]:
@@ -20,6 +23,66 @@ def _coerce_topics(raw: Any) -> tuple[str, ...]:
     if isinstance(raw, str):
         raw = [raw]
     return tuple(str(t) for t in raw)
+
+
+def _coerce_tags(raw: Any) -> tuple[str, ...]:
+    if not raw:
+        return ()
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list | tuple):
+        return ()
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in raw:
+        if not isinstance(value, str):
+            continue
+        tag = value.strip().lower()
+        if not tag or len(tag) > 20 or tag in seen:
+            continue
+        seen.add(tag)
+        out.append(tag)
+    return tuple(out)
+
+
+def _normalized_url(url: str | None) -> str | None:
+    if not url or not url.strip():
+        return None
+    parsed = urlparse(url.strip().lower())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    path = parsed.path.rstrip("/")
+    cleaned = parsed._replace(path=path, query="", fragment="")
+    return cleaned.geturl()
+
+
+def _normalized_name(name: str) -> str:
+    collapsed = re.sub(r"\s+", " ", name.strip().lower())
+    return collapsed.strip(string.punctuation)
+
+
+def canonical_key(product: "Product") -> str:
+    normalized_url = _normalized_url(product.url)
+    if normalized_url is not None:
+        return f"url:{normalized_url}"
+    return f"name:{_normalized_name(product.name)}"
+
+
+def _coerce_datetime(raw: Any) -> datetime | None:
+    if not raw:
+        return None
+    if isinstance(raw, datetime):
+        return raw if raw.tzinfo is not None else raw.replace(tzinfo=timezone.utc)
+    if not isinstance(raw, str):
+        return None
+    value = raw.strip()
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +104,8 @@ class Product:
     votes_count: int = 0
     url: str | None = None
     topics: tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
+    posted_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if not self.name or not self.name.strip():
@@ -59,6 +124,8 @@ class Product:
             "votes_count": self.votes_count,
             "url": self.url,
             "topics": list(self.topics),
+            "tags": list(self.tags),
+            "posted_at": self.posted_at.isoformat() if self.posted_at else None,
         }
 
     @classmethod
@@ -76,6 +143,8 @@ class Product:
             votes_count=votes_int,
             url=data.get("url"),
             topics=_coerce_topics(data.get("topics")),
+            tags=_coerce_tags(data.get("tags")),
+            posted_at=_coerce_datetime(data.get("posted_at")),
         )
 
 

@@ -7,7 +7,7 @@ import pytest
 from ph_ai_tracker.api_client import ProductHuntAPI
 from ph_ai_tracker.exceptions import ScraperError
 from ph_ai_tracker.models import Product
-from ph_ai_tracker.protocols import FallbackProvider, ProductProvider, _NoTokenProvider
+from ph_ai_tracker.protocols import FallbackProvider, ProductProvider, TaggingService, _NoTokenProvider
 from ph_ai_tracker.scraper import ProductHuntScraper
 
 
@@ -51,6 +51,21 @@ def test_no_token_provider_satisfies_protocol() -> None:
 
 def test_arbitrary_object_does_not_satisfy_protocol() -> None:
     assert not isinstance(object(), ProductProvider)
+
+
+def test_tagging_service_protocol_runtime_checkable() -> None:
+    class _StubTagger:
+        def categorize(self, product: Product) -> tuple[str, ...]:
+            return ()
+
+    assert isinstance(_StubTagger(), TaggingService)
+
+
+def test_tagging_service_protocol_rejects_missing_method() -> None:
+    class _NoCategorize:
+        pass
+
+    assert not isinstance(_NoCategorize(), TaggingService)
 
 
 # source_name labels

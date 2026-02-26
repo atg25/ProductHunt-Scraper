@@ -1,6 +1,7 @@
 import pytest
+from datetime import datetime, timezone
 
-from ph_ai_tracker.models import Product, TrackerResult
+from ph_ai_tracker.models import Product, TrackerResult, canonical_key
 from ph_ai_tracker.exceptions import APIError, PhAITrackerError, RateLimitError, ScraperError
 
 
@@ -11,7 +12,7 @@ def test_product_creation_valid() -> None:
 
 
 def test_product_to_dict_roundtrip() -> None:
-    p = Product(name="Foo", tagline="t", description="d", votes_count=3, url="u", topics=("AI",))
+    p = Product(name="Foo", tagline="t", description="d", votes_count=3, url="u", topics=("AI",), tags=("ai",))
     assert Product.from_dict(p.to_dict()) == p
 
 
@@ -101,3 +102,65 @@ def test_exceptions_hierarchy() -> None:
     assert issubclass(APIError, PhAITrackerError)
     assert issubclass(ScraperError, PhAITrackerError)
     assert issubclass(RateLimitError, APIError)
+
+
+def test_product_tags_defaults_to_empty_tuple() -> None:
+    assert Product(name="X").tags == ()
+
+
+def test_product_tags_accepts_tuple_of_strings() -> None:
+    assert Product(name="X", tags=("ai", "tool")).tags == ("ai", "tool")
+
+
+def test_product_from_dict_populates_tags() -> None:
+    product = Product.from_dict({"name": "X", "tags": ["AI", "tool", "AI"]})
+    assert product.tags == ("ai", "tool")
+
+
+def test_product_from_dict_missing_tags_key_defaults_to_empty() -> None:
+    assert Product.from_dict({"name": "X"}).tags == ()
+
+
+def test_product_from_dict_null_tags_defaults_to_empty() -> None:
+    assert Product.from_dict({"name": "X", "tags": None}).tags == ()
+
+
+def test_product_to_dict_includes_tags() -> None:
+    assert Product(name="X", tags=("ai",)).to_dict()["tags"] == ["ai"]
+
+
+def test_product_to_dict_tags_is_list_not_tuple() -> None:
+    assert isinstance(Product(name="X").to_dict()["tags"], list)
+
+
+def test_canonical_key_url_normalization_rules() -> None:
+    key = canonical_key(Product(name="X", url="  HTTPS://Example.COM/p/foo/?ref=1#top  "))
+    assert key == "url:https://example.com/p/foo"
+
+
+def test_canonical_key_invalid_url_falls_back_to_name() -> None:
+    assert canonical_key(Product(name="...My   App!!!", url="not a url")) == "name:my app"
+
+
+def test_canonical_key_absent_url_uses_name() -> None:
+    assert canonical_key(Product(name="  MY   APP  ")) == "name:my app"
+
+
+def test_canonical_key_idempotent_name_path() -> None:
+    key = canonical_key(Product(name="  ...My   App!!!  "))
+    assert canonical_key(Product(name=key.replace("name:", "", 1))) == key
+
+
+def test_canonical_key_idempotent_url_path() -> None:
+    key = canonical_key(Product(name="X", url="HTTPS://example.com/p/foo/?a=1#z"))
+    assert canonical_key(Product(name="X", url=key.replace("url:", "", 1))) == key
+
+
+def test_product_from_dict_parses_posted_at_iso() -> None:
+    product = Product.from_dict({"name": "X", "posted_at": "2026-02-25T12:00:00Z"})
+    assert product.posted_at == datetime(2026, 2, 25, 12, 0, 0, tzinfo=timezone.utc)
+
+
+def test_product_to_dict_includes_posted_at_iso_string() -> None:
+    product = Product(name="X", posted_at=datetime(2026, 2, 25, 12, 0, 0, tzinfo=timezone.utc))
+    assert product.to_dict()["posted_at"] == "2026-02-25T12:00:00+00:00"

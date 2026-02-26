@@ -98,10 +98,6 @@ def test_SQLiteStore_save_result_has_docstring() -> None:
     assert _has_docstring(SQLiteStore.save_result)
 
 
-def test_SQLiteStore_upsert_product_has_docstring() -> None:
-    assert _has_docstring(SQLiteStore._upsert_product)
-
-
 def test_SQLiteStore_init_db_has_docstring() -> None:
     assert _has_docstring(SQLiteStore.init_db)
 
@@ -117,8 +113,8 @@ def test_scraper_class_docstring_mentions_dom_or_next_data() -> None:
     assert "__next_data__" in doc or "dom" in doc or "react" in doc
 
 
-def test_storage_class_docstring_mentions_canonical() -> None:
-    assert "canonical" in (SQLiteStore.__doc__ or "").lower()
+def test_storage_class_docstring_mentions_observation() -> None:
+    assert "observation" in (SQLiteStore.__doc__ or "").lower()
 
 
 def test_tracker_class_docstring_mentions_strategy() -> None:

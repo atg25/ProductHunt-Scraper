@@ -9,7 +9,7 @@ This sprint plan replaces the earlier package/scaffolding plan and targets the c
 3. Containerize scraper + cron scheduler with Docker.
 4. Persist SQLite data on a Docker volume.
 
-Out of scope for this plan: API service layer.
+Originally out of scope: API service layer. Now included via Sprint 64.
 
 ---
 
@@ -64,6 +64,21 @@ Out of scope for this plan: API service layer.
 47. Sprint 47 — Data Clump: absorb `search_term` + `limit` into `TrackerResult`; remove those params from `SQLiteStore.save_result` _(Uncle Bob Letter 11, issue #2)_
 48. Sprint 48 — Inappropriate Intimacy: delete private-method tests for `_insert_run_record`, `_insert_all_snapshots`, and `_build_query`; replace `_build_query` test with public-contract test _(Uncle Bob Letter 11, issue #3)_
 49. Sprint 49 — Temporal Coupling: remove `self.init_db()` from `save_result`; call `init_db()` explicitly in `__main__.py` and `scheduler.py` at startup _(Uncle Bob Letter 11, issue #4)_
+50. Sprint 50 — Add `tags` field to `Product` entity; `_coerce_tags` helper; `to_dict` / `from_dict` updates _(Uncle Bob Letter 12, issue #1)_
+51. Sprint 51 — Pure `canonical_key(product)` function: URL-first normalization with name fallback; extract from storage _(Uncle Bob Letter 12, issue #2)_
+52. Sprint 52 — `TaggingService` Protocol in application boundary (`protocols.py`) _(Uncle Bob Letter 12, issue #3)_
+53. Sprint 53 — `NoOpTaggingService`: null-object outer-layer implementation in `tagging.py` _(Uncle Bob Letter 12, issue #4)_
+54. Sprint 54 — `UniversalLLMTaggingService`: failure-safe HTTP tagging, JSON schema validation, quality constraints _(Uncle Bob Letter 12, issue #5)_
+55. Sprint 55 — Use-case enrichment: `AIProductTracker` accepts `TaggingService`, enriches products, failure-safe _(Uncle Bob Letter 12, issue #6)_
+56. Sprint 56 — Bootstrap injection: env-var-driven tagging service selection in `bootstrap.py` and `__main__.py` _(Uncle Bob Letter 12, issue #7)_
+57. Sprint 57 — `NewsletterFormatter` presenter: sort by votes DESC / name ASC, tag frequencies, full field contract _(Uncle Bob Letter 12, issue #8)_
+58. Sprint 58 — Integration tests: tagging + formatting pipeline through public contracts, no real I/O _(Uncle Bob Letter 12, issue #9)_
+59. Sprint 59 — E2E tests: positive (full pipeline with mock LLM) and negative (LLM down, bad JSON, missing key, scraper failure) _(Uncle Bob Letter 12, issue #10)_
+60. Sprint 60 — Bundle audit: register `tagging.py` and `formatters.py` in review bundle manifests _(Uncle Bob Letter 13, issue #1)_
+61. Sprint 61 — Remove exception muzzle in tracker enrichment path; trust service contract _(Uncle Bob Letter 13, issue #2)_
+62. Sprint 62 — Wire `NewsletterFormatter` into CLI stdout path _(Uncle Bob Letter 13, issue #3)_
+63. Sprint 63 — Wire `NewsletterFormatter` into scheduler stdout path _(Uncle Bob Letter 13, issue #4)_
+64. Sprint 64 — Expose FastAPI HTTP endpoints for health, search, and history
 
 ---
 
@@ -110,6 +125,21 @@ Out of scope for this plan: API service layer.
 - Sprint 47 depends on Sprint 43 (`TrackerResult` was enriched with `is_transient` in Sprint 43; absorbing `search_term`/`limit` follows the same pattern) and Sprint 15 (the private `_insert_run_record` helpers introduced there are the ones whose signatures change here).
 - Sprint 48 depends on Sprint 47 (`_insert_run_record` signature changes in Sprint 47 first, so Sprint 48 deletes the tests that reference the old signature) and Sprint 41 (`_build_query` is the static method tested in isolation here).
 - Sprint 49 depends on Sprint 47 (`save_result` signature is stabilised in Sprint 47 before the `init_db` side-effect is removed here).
+- Sprint 50 is independent; adds a new field to `Product` only.
+- Sprint 51 depends on Sprint 50 (`Product` must have its final field set before the pure `canonical_key` function is extracted from storage).
+- Sprint 52 depends on Sprint 50 (`TaggingService.categorize` signature references `Product`; the `tags` field must already exist).
+- Sprint 53 depends on Sprint 52 (`NoOpTaggingService` must satisfy the `TaggingService` protocol defined in Sprint 52).
+- Sprint 54 depends on Sprints 52 and 53 (`UniversalLLMTaggingService` implements the same protocol; `NoOpTaggingService` is the regression baseline for tests).
+- Sprint 55 depends on Sprints 52, 53, and 54 (use case wires the tagging services from all three previous sprints).
+- Sprint 56 depends on Sprints 53, 54, and 55 (bootstrap selects between the two implementations and injects into the wired use case).
+- Sprint 57 depends on Sprint 50 (`NewsletterFormatter` reads `product.tags`; field must exist).
+- Sprint 58 depends on Sprints 55 and 57 (exercises the full tracker → formatter pipeline end-to-end).
+- Sprint 59 depends on Sprints 56, 57, and 58 (requires bootstrap injection, formatter, and integration seam all confirmed green).
+- Sprint 60 depends on Sprint 57 and Sprint 58 (bundle must include formatter/tagging code and associated tests).
+- Sprint 61 depends on Sprint 55 (removes broad exception handling from enrichment path introduced there).
+- Sprint 62 depends on Sprint 57 and Sprint 56 (CLI output wiring requires formatter and bootstrap tagging injection).
+- Sprint 63 depends on Sprint 62 and Sprint 57 (scheduler output made consistent with CLI newsletter output).
+- Sprint 64 depends on Sprint 63 and storage simplification (HTTP API reuses tracker/scheduler output model and single-table history contract).
 
 ---
 
@@ -245,3 +275,31 @@ Out of scope for this plan: API service layer.
 | 1   | Sprint 36 removed dashes but left floating `# Label — Sprint N` and `Sprint N:` module docstring prefixes intact — malicious compliance | 37     | Delete all 15 remaining standalone `# … Sprint …` comment lines; strip sprint-number prefix/suffix from 7 module docstrings; `grep "Sprint [0-9]" tests/` → 0 hits |
 | 2   | `test_passes_filter_no_longer_exists` is a ghost-hunting test proving a historical deletion, not current behaviour                      | 38     | Delete the test entirely; test count drops by exactly 1                                                                                                            |
 | 3   | `from_dict` validates `name` manually before calling `cls(…)`, duplicating `__post_init__` with a different error message               | 39     | Remove the two-line pre-check from `from_dict`; use `name=str(data.get("name") or "")` so `__post_init__` is the single authoritative gatekeeper                   |
+
+---
+
+## Uncle Bob Letter 12 Resolution Plan (Sprints 50–59)
+
+| #   | Uncle Bob Concern                                                                             | Sprint | Planned Change                                                                                                                                       |
+| --- | --------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `Product` has no `tags` field; enrichment data has nowhere to live in the entity layer        | 50     | Add `tags: tuple[str, ...]` to `Product`; `_coerce_tags` helper; `to_dict` and `from_dict` updated; full unit-test coverage                          |
+| 2   | Canonical key logic is buried inside a SQL helper; entities cannot be deduplicated without DB | 51     | Extract `canonical_key(product) -> str` pure function into `models.py`; full URL-normalization and name-fallback rules; idempotence tests            |
+| 3   | No `TaggingService` abstraction; tagging cannot be injected → Dependency Rule violation       | 52     | Define `@runtime_checkable TaggingService(Protocol)` in `protocols.py`; unit tests for protocol conformance                                          |
+| 4   | System has no safe default when LLM key is absent; null check required at every call site     | 53     | `NoOpTaggingService` in `tagging.py`; null object patterns means callers never branch on `None`; parametrised unit tests                             |
+| 5   | No LLM tagging mechanism exists; tags always empty                                            | 54     | `UniversalLLMTaggingService` in `tagging.py`; never raises; validates JSON schema and quality constraints; all tests use mocked HTTP                 |
+| 6   | `AIProductTracker.get_products` does not enrich products; enrichment must be a use-case step  | 55     | Accept `tagging_service` kwarg; `_enrich_product` helper; tagging failure-safe; tagging skipped on fetch failure; backward-compatible default (NoOp) |
+| 7   | Bootstrap does not read env vars for LLM; no injection path from outer ring to use case       | 56     | `build_tagging_service(env)` in `bootstrap.py`; reads `OPENAI_API_KEY` / `OPENAI_BASE_URL`; `__main__.py` injects result into `AIProductTracker`     |
+| 8   | No newsletter presenter; sorting and aggregation duplicated or absent across call sites       | 57     | `NewsletterFormatter` in `formatters.py`; votes DESC / name ASC sort; tag frequency counter; full 7-field product dict; zero storage/LLM imports     |
+| 9   | No integration test exercises the tracker → tagging → formatter chain together                | 58     | `tests/integration/test_tagging_formatter_pipeline.py`; 7 tests; no real HTTP/SQLite; shared fixtures in conftest                                    |
+| 10  | No E2E tests cover tagging or newsletter; degradation paths (LLM down, bad JSON) untested     | 59     | `tests/e2e/` extended: 4 positive + 7 negative scenarios; mock HTTP for both PH and LLM; real in-memory SQLite; all failure modes confirmed graceful |
+
+---
+
+## Uncle Bob Letter 13 Resolution Plan (Sprints 60–63)
+
+| #   | Uncle Bob Concern                                                                                            | Sprint | Planned Change                                                                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `tagging.py` and `formatters.py` absent from `build_bundle.py`; Uncle Bob cannot review them                 | 60     | Add both files to `SECTION_3_PRODUCTION`; add `test_tagging.py`, `test_formatters.py`, `test_tagging_formatter_pipeline.py` to `SECTION_4_TESTS`; bundle shows 15 prod / 24 test |
+| 2   | `_enrich_product` swallows `Exception`; hides Use Case bugs; violates trust-the-contract principle           | 61     | Remove try/except from `_enrich_product`; rely on `TaggingService` to guarantee failure-safety; new tests assert exceptions propagate; old swallowing tests deleted              |
+| 3   | `NewsletterFormatter` built but not wired into CLI (`__main__.py`); `to_pretty_json` still emitted on stdout | 62     | Replace both `to_pretty_json` stdout writes in `__main__.py` with `json.dumps(NewsletterFormatter().format(...)))`; 6 new tests (unit + integration + e2e positive + negative)   |
+| 4   | `NewsletterFormatter` not wired into scheduler (`scheduler.py`); `to_pretty_json` still emitted on stdout    | 63     | Replace `to_pretty_json` stdout write in `scheduler.main` with newsletter JSON; 8 new tests covering stdout shape, stderr preservation, error exit codes                         |

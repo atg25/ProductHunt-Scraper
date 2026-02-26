@@ -83,3 +83,37 @@ def test_bundle_does_not_include_site_packages(file_markers: list[str]) -> None:
 def test_bundle_does_not_include_pytest_cache(file_markers: list[str]) -> None:
     cache_markers = [m for m in file_markers if ".pytest_cache" in m]
     assert cache_markers == [], f"Bundle contains .pytest_cache paths: {cache_markers[:5]}"
+
+
+# Sprint 60 — tagging.py and formatters.py must appear in build_bundle.py lists
+
+def test_tagging_in_production_list() -> None:
+    from scripts import build_bundle
+    paths = [str(p) for p in build_bundle.SECTION_3_PRODUCTION]
+    assert any("tagging.py" in p for p in paths), "tagging.py missing from SECTION_3_PRODUCTION"
+
+
+def test_formatters_in_production_list() -> None:
+    from scripts import build_bundle
+    paths = [str(p) for p in build_bundle.SECTION_3_PRODUCTION]
+    assert any("formatters.py" in p for p in paths), "formatters.py missing from SECTION_3_PRODUCTION"
+
+
+def test_tagging_tests_in_test_list() -> None:
+    from scripts import build_bundle
+    paths = [str(p) for p in build_bundle.SECTION_4_TESTS]
+    assert any("test_tagging.py" in p for p in paths), "test_tagging.py missing from SECTION_4_TESTS"
+
+
+def test_formatters_tests_in_test_list() -> None:
+    from scripts import build_bundle
+    paths = [str(p) for p in build_bundle.SECTION_4_TESTS]
+    assert any("test_formatters.py" in p for p in paths), "test_formatters.py missing from SECTION_4_TESTS"
+
+
+def test_pipeline_tests_in_test_list() -> None:
+    from scripts import build_bundle
+    paths = [str(p) for p in build_bundle.SECTION_4_TESTS]
+    assert any("test_tagging_formatter_pipeline.py" in p for p in paths), (
+        "test_tagging_formatter_pipeline.py missing from SECTION_4_TESTS"
+    )

@@ -27,7 +27,7 @@ def test_add_common_arguments_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert args.strategy == "scraper"
     assert args.search == "AI"
-    assert args.limit == 20
+    assert args.limit == 10
     assert args.db_path == "./data/ph_ai_tracker.db"
     assert args.token is None
 
@@ -65,7 +65,7 @@ def test_add_common_arguments_cli_overrides_env(monkeypatch: pytest.MonkeyPatch)
 # CommonArgs
 
 def _ns(**kwargs: object) -> argparse.Namespace:
-    defaults = dict(strategy="scraper", search="AI", limit=20, db_path="./data/x.db", token=None)
+    defaults = dict(strategy="scraper", search="AI", limit=10, db_path="./data/x.db", token=None)
     defaults.update(kwargs)
     return argparse.Namespace(**defaults)
 

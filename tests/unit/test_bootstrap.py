@@ -5,9 +5,10 @@ from __future__ import annotations
 import pytest
 
 from ph_ai_tracker.api_client import ProductHuntAPI
-from ph_ai_tracker.bootstrap import build_provider
+from ph_ai_tracker.bootstrap import build_provider, build_tagging_service
 from ph_ai_tracker.protocols import FallbackProvider, _NoTokenProvider
 from ph_ai_tracker.scraper import ProductHuntScraper
+from ph_ai_tracker.tagging import NoOpTaggingService, UniversalLLMTaggingService
 
 
 def test_build_provider_scraper() -> None:
@@ -41,3 +42,30 @@ def test_build_provider_auto_no_token_emits_warning() -> None:
 def test_build_provider_unknown_strategy_raises() -> None:
     with pytest.raises(ValueError, match="Unknown strategy"):
         build_provider(strategy="rss_feed", api_token=None)
+
+
+def test_build_tagging_service_returns_noop_when_no_key() -> None:
+    service = build_tagging_service({})
+    assert isinstance(service, NoOpTaggingService)
+
+
+def test_build_tagging_service_returns_noop_for_blank_key() -> None:
+    service = build_tagging_service({"OPENAI_API_KEY": "   "})
+    assert isinstance(service, NoOpTaggingService)
+
+
+def test_build_tagging_service_returns_llm_with_key() -> None:
+    service = build_tagging_service({"OPENAI_API_KEY": "sk-test"})
+    assert isinstance(service, UniversalLLMTaggingService)
+
+
+def test_build_tagging_service_uses_custom_base_url() -> None:
+    service = build_tagging_service({"OPENAI_API_KEY": "sk-test", "OPENAI_BASE_URL": "https://example.test/v1"})
+    assert isinstance(service, UniversalLLMTaggingService)
+    assert service.base_url == "https://example.test/v1"
+
+
+def test_build_tagging_service_uses_default_base_url() -> None:
+    service = build_tagging_service({"OPENAI_API_KEY": "sk-test"})
+    assert isinstance(service, UniversalLLMTaggingService)
+    assert service.base_url == "https://api.openai.com/v1"

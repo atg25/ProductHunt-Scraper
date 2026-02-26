@@ -16,16 +16,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import argparse
+import json
 import os
 import re
 import sys
 import time
+from datetime import datetime, timezone
 from typing import Callable, TypeVar
 
-from .bootstrap import build_provider
+from .bootstrap import build_provider, build_tagging_service
 from .cli import add_common_arguments, CommonArgs
 from .constants import DEFAULT_LIMIT, DEFAULT_SEARCH_TERM
 from .exceptions import StorageError
+from .formatters import NewsletterFormatter
 from .models import TrackerResult
 from .storage import SQLiteStore
 from .tracker import AIProductTracker
@@ -101,7 +104,7 @@ class SchedulerConfig:
 class SchedulerRunResult:
     """The outcome of a single ``run_once()`` call."""
 
-    run_id: int
+    saved: int
     tracker_result: TrackerResult
     status: str
     attempts_used: int
@@ -175,7 +178,7 @@ def _format_run_summary(run_result: SchedulerRunResult) -> str:
     """Return a one-line stderr summary for the completed run."""
     r = run_result.tracker_result
     return (
-        f"[scheduler] run_id={run_result.run_id} status={run_result.status} "
+        f"[scheduler] saved={run_result.saved} status={run_result.status} "
         f"source={r.source} attempts={run_result.attempts_used} "
         f"fetched={len(r.products)} error={r.error!r}"
     )
@@ -203,14 +206,14 @@ def _make_scheduler_parser() -> argparse.ArgumentParser:
 def run_once(config: SchedulerConfig) -> SchedulerRunResult:
     """Execute one full fetch-and-persist cycle and return the run outcome."""
     provider = build_provider(strategy=config.strategy, api_token=config.api_token)
-    tracker = AIProductTracker(provider=provider)
+    tracker = AIProductTracker(provider=provider, tagging_service=build_tagging_service())
     result, attempts_used = _fetch_with_retries(tracker, config)
     store = SQLiteStore(config.db_path)
     store.init_db()
     status = _classify_run_status(result)
-    run_id = store.save_result(result, status=status)
+    saved = store.save_result(result)
     return SchedulerRunResult(
-        run_id=run_id, tracker_result=result, status=status, attempts_used=attempts_used,
+        saved=saved, tracker_result=result, status=status, attempts_used=attempts_used,
     )
 
 
@@ -228,7 +231,8 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"failed to persist run: {exc}\n")
         return 3
     sys.stderr.write(_format_run_summary(run_result) + "\n")
-    sys.stdout.write(run_result.tracker_result.to_pretty_json() + "\n")
+    newsletter = NewsletterFormatter().format(list(run_result.tracker_result.products), datetime.now(timezone.utc))
+    sys.stdout.write(json.dumps(newsletter) + "\n")
     return 0 if run_result.tracker_result.error is None else 2
 
 

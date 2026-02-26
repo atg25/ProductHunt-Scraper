@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from datetime import datetime, timezone
 
-from .bootstrap import build_provider
+from .bootstrap import build_provider, build_tagging_service
 from .cli import add_common_arguments, CommonArgs
 from .exceptions import StorageError
+from .formatters import NewsletterFormatter
 from .storage import SQLiteStore
 from .tracker import AIProductTracker
 
@@ -25,9 +28,16 @@ def _try_persist(result, common: CommonArgs) -> int | None:
 def _fetch_result(common: CommonArgs):
     """Build provider and fetch products; never raises."""
     provider = build_provider(strategy=common.strategy, api_token=common.api_token)
-    return AIProductTracker(provider=provider).get_products(
+    tagging_service = build_tagging_service()
+    return AIProductTracker(provider=provider, tagging_service=tagging_service).get_products(
         search_term=common.search_term, limit=common.limit
     )
+
+
+def _write_newsletter(result) -> None:
+    """Serialise result as newsletter JSON and write to stdout."""
+    newsletter = NewsletterFormatter().format(list(result.products), datetime.now(timezone.utc))
+    sys.stdout.write(json.dumps(newsletter) + "\n")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -41,9 +51,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_persist:
         code = _try_persist(result, common)
         if code is not None:
-            sys.stdout.write(result.to_pretty_json() + "\n")
+            _write_newsletter(result)
             return code
-    sys.stdout.write(result.to_pretty_json() + "\n")
+    _write_newsletter(result)
     return 0 if result.error is None else 2
 
 

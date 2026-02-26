@@ -49,7 +49,7 @@ def _add_limit_argument(parser: argparse.ArgumentParser) -> None:
         "--limit",
         type=int,
         default=int(os.environ.get(_ENV_LIMIT, str(DEFAULT_LIMIT))),
-        help="Max products to return (default: 20 or PH_AI_TRACKER_LIMIT)",
+        help="Max products to return (default: 10 or PH_AI_TRACKER_LIMIT)",
     )
 
 

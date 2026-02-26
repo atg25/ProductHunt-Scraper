@@ -28,9 +28,9 @@ def test_scraper_docstring_mentions_next_data_or_dom() -> None:
     assert "__next_data__" in doc or "walk" in doc or "json" in doc
 
 
-def test_storage_upsert_docstring_mentions_on_conflict() -> None:
-    doc = (SQLiteStore._upsert_product.__doc__ or "").lower()
-    assert "on conflict" in doc or "upsert" in doc or "dedup" in doc
+def test_storage_class_docstring_mentions_observation_or_insert() -> None:
+    doc = (SQLiteStore.__doc__ or "").lower()
+    assert "observation" in doc or "insert" in doc or "row" in doc
 
 
 def test_tracker_result_docstring_mentions_transient() -> None:

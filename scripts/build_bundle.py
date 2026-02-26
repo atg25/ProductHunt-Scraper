@@ -39,12 +39,15 @@ SECTION_3_PRODUCTION: list[Path] = [
     SRC / "models.py",
     SRC / "constants.py",
     SRC / "protocols.py",
+    SRC / "formatters.py",
     SRC / "api_client.py",
     SRC / "scraper.py",
     SRC / "storage.py",
     SRC / "tracker.py",
     SRC / "cli.py",
+    SRC / "tagging.py",
     SRC / "bootstrap.py",
+    SRC / "api.py",
     SRC / "scheduler.py",
     SRC / "__init__.py",
     SRC / "__main__.py",
@@ -54,6 +57,7 @@ SECTION_4_TESTS: list[Path] = [
     ROOT / "tests" / "conftest.py",
     # unit
     ROOT / "tests" / "unit" / "test_models.py",
+    ROOT / "tests" / "unit" / "test_api.py",
     ROOT / "tests" / "unit" / "test_api_client.py",
     ROOT / "tests" / "unit" / "test_scraper.py",
     ROOT / "tests" / "unit" / "test_storage.py",
@@ -61,16 +65,21 @@ SECTION_4_TESTS: list[Path] = [
     ROOT / "tests" / "unit" / "test_scheduler.py",
     ROOT / "tests" / "unit" / "test_bootstrap.py",
     ROOT / "tests" / "unit" / "test_protocols.py",
+    ROOT / "tests" / "unit" / "test_tagging.py",
+    ROOT / "tests" / "unit" / "test_formatters.py",
     ROOT / "tests" / "unit" / "test_docstrings.py",
     ROOT / "tests" / "unit" / "test_bundle_script.py",
     # integration
+    ROOT / "tests" / "integration" / "test_http_api_integration.py",
     ROOT / "tests" / "integration" / "test_api_integration.py",
     ROOT / "tests" / "integration" / "test_scraper_integration.py",
     ROOT / "tests" / "integration" / "test_storage_integrity.py",
     ROOT / "tests" / "integration" / "test_tracker_integration.py",
+    ROOT / "tests" / "integration" / "test_tagging_formatter_pipeline.py",
     ROOT / "tests" / "integration" / "test_bundle_integrity.py",
     ROOT / "tests" / "integration" / "test_narrative_docs.py",
     # e2e
+    ROOT / "tests" / "e2e" / "test_e2e_api.py",
     ROOT / "tests" / "e2e" / "test_e2e_positive.py",
     ROOT / "tests" / "e2e" / "test_e2e_negative.py",
     ROOT / "tests" / "e2e" / "test_packaging.py",
@@ -225,7 +234,7 @@ def _dependency_graph() -> str:
     layers = textwrap.dedent("""\
         ┌─────────────────────────────────────────────────────────────┐
         │  FRAMEWORK / CLI LAYER                                      │
-        │    scheduler.py  __main__.py                                │
+        │    api.py  scheduler.py  __main__.py                        │
         ├─────────────────────────────────────────────────────────────┤
         │  USE-CASE / APPLICATION LAYER                               │
         │    tracker.py                                               │

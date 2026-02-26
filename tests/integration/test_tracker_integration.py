@@ -63,3 +63,51 @@ def test_empty_string_token_triggers_warning() -> None:
     with _pytest.warns(RuntimeWarning, match="api_token"):
         provider = FallbackProvider(api_provider=None, scraper_provider=_FailingScraper())
         AIProductTracker(provider=provider).get_products(limit=1)
+
+
+# Sprint 62 — CLI stdout must be newsletter-format JSON
+
+def test_cli_stdout_is_newsletter_json(monkeypatch, capsys) -> None:
+    """main(--no-persist) must write newsletter JSON keys to stdout."""
+    import json
+    from ph_ai_tracker import __main__ as cli_main
+    from ph_ai_tracker.models import Product, TrackerResult
+
+    products = [Product(name="Tool A", votes_count=10), Product(name="Tool B", votes_count=5)]
+    monkeypatch.setattr(cli_main, "_fetch_result", lambda _c: TrackerResult.success(products, source="scraper"))
+    code = cli_main.main(["--no-persist"])
+    assert code == 0
+    out = json.loads(capsys.readouterr().out)
+    assert set(out.keys()) >= {"generated_at", "total_products", "top_tags", "products"}
+
+
+def test_cli_stdout_newsletter_total_products_matches_provider(monkeypatch, capsys) -> None:
+    """total_products in newsletter output must equal the provider's product count."""
+    import json
+    from ph_ai_tracker import __main__ as cli_main
+    from ph_ai_tracker.models import Product, TrackerResult
+
+    products = [Product(name=f"P{i}", votes_count=i) for i in range(7)]
+    monkeypatch.setattr(cli_main, "_fetch_result", lambda _c: TrackerResult.success(products, source="scraper"))
+    cli_main.main(["--no-persist"])
+    out = json.loads(capsys.readouterr().out)
+    assert out["total_products"] == 7
+
+
+# Sprint 63 — scheduler stdout must be newsletter JSON
+
+def test_scheduler_run_once_stdout_is_newsletter(tmp_path, monkeypatch, capsys) -> None:
+    """scheduler.main(...) must write newsletter JSON keys to stdout."""
+    import json
+    import ph_ai_tracker.scheduler as scheduler_mod
+    from ph_ai_tracker.scheduler import SchedulerRunResult, main as scheduler_main
+    from ph_ai_tracker.models import Product, TrackerResult
+
+    products = [Product(name="Tool X", votes_count=3)]
+    tracker_result = TrackerResult.success(products, source="scraper")
+    fake = SchedulerRunResult(saved=1, tracker_result=tracker_result, status="success", attempts_used=1)
+    monkeypatch.setattr(scheduler_mod, "run_once", lambda _c: fake)
+    code = scheduler_main(["--strategy", "scraper", "--db-path", str(tmp_path / "db.db")])
+    assert code == 0
+    out = json.loads(capsys.readouterr().out)
+    assert set(out.keys()) >= {"generated_at", "total_products", "top_tags", "products"}

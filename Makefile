@@ -1,6 +1,6 @@
 BUNDLE_FILE := codebase_review_bundle.txt
 
-.PHONY: test run runner demo db-tables db-verify docker-build docker-up docker-down docker-logs bundle
+.PHONY: test run runner serve demo db-tables db-verify docker-build docker-up docker-down docker-logs bundle
 
 test:
 	poetry run pytest
@@ -9,7 +9,10 @@ run:
 	poetry run ph-ai-tracker --strategy scraper --search AI --limit 10
 
 runner:
-	poetry run ph-ai-tracker-runner --strategy scraper --search AI --limit 20 --db-path $${PH_AI_DB_PATH:-./data/ph_ai_tracker.db}
+	poetry run ph-ai-tracker-runner --strategy scraper --search AI --limit 10 --db-path $${PH_AI_DB_PATH:-./data/ph_ai_tracker.db}
+
+serve:
+	poetry run uvicorn ph_ai_tracker.api:app --host 0.0.0.0 --port 8000 --reload
 
 demo:
 	sh scripts/demo_pipeline.sh

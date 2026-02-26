@@ -14,12 +14,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 import re
 from typing import Any
 
 import httpx
 
-from .constants import DEFAULT_LIMIT, DEFAULT_SEARCH_TERM
+from .constants import DEFAULT_LIMIT, DEFAULT_RECENT_DAYS, DEFAULT_SEARCH_TERM
 from .exceptions import APIError, RateLimitError
 from .models import Product
 
@@ -117,6 +118,7 @@ _GQL_POST_FIELDS = """
           name
           tagline
           description
+                    createdAt
           votesCount
           url
           topics(first: 10) {{
@@ -241,8 +243,31 @@ class ProductHuntAPI:
         products = self._fetch_and_build(
             query_context.payload, topic_slug, limit_int, order, query_context.local_filter
         )
+        products = self._filter_recent_products(products, days=DEFAULT_RECENT_DAYS)
         products.sort(key=lambda p: p.votes_count, reverse=True)
         return products[:limit_int]
+
+    @staticmethod
+    def _filter_recent_products(products: list[Product], *, days: int) -> list[Product]:
+        if not products or not any(p.posted_at is not None for p in products):
+            return products
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(days=max(int(days), 1))
+        return [
+            product
+            for product in products
+            if product.posted_at is not None and product.posted_at >= cutoff
+        ]
+
+    @staticmethod
+    def _parse_posted_at(raw: Any) -> datetime | None:
+        if not isinstance(raw, str) or not raw.strip():
+            return None
+        try:
+            parsed = datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
 
     def _execute_request(self, payload: dict[str, Any]) -> dict[str, Any]:
         """POST *payload*; return parsed JSON. Raises RateLimitError/APIError."""
@@ -342,6 +367,7 @@ class ProductHuntAPI:
             votes_count=int(node.get("votesCount") or 0),
             url=node.get("url"),
             topics=topics,
+            posted_at=ProductHuntAPI._parse_posted_at(node.get("createdAt")),
         )
 
     @staticmethod

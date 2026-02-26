@@ -68,3 +68,40 @@ def test_e2e_bundle_has_no_pycache(bundle_text: str) -> None:
     """No FILE: marker should point into a __pycache__ directory."""
     bad = [p for p in _file_paths(bundle_text) if "__pycache__" in p]
     assert bad == [], f"__pycache__ FILE markers found: {bad[:3]}"
+
+
+# Sprint 60 — newly added production files must appear in the regenerated bundle
+
+def test_e2e_bundle_contains_tagging_source(bundle_text: str) -> None:
+    """tagging.py must be present in the bundle after Sprint 60."""
+    assert "class NoOpTaggingService" in bundle_text, (
+        "NoOpTaggingService missing — tagging.py not in bundle"
+    )
+    assert "class UniversalLLMTaggingService" in bundle_text, (
+        "UniversalLLMTaggingService missing — tagging.py not in bundle"
+    )
+
+
+def test_e2e_bundle_contains_formatter_source(bundle_text: str) -> None:
+    """formatters.py must be present in the bundle after Sprint 60."""
+    assert "class NewsletterFormatter" in bundle_text, (
+        "NewsletterFormatter missing — formatters.py not in bundle"
+    )
+
+
+def test_e2e_bundle_all_production_files_exist() -> None:
+    """Every file listed in SECTION_3_PRODUCTION must physically exist on disk."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import build_bundle  # type: ignore[import]
+    missing = [str(p) for p in build_bundle.SECTION_3_PRODUCTION if not p.exists()]
+    assert missing == [], f"Listed production files not found on disk: {missing}"
+
+
+def test_e2e_bundle_all_test_files_exist() -> None:
+    """Every file listed in SECTION_4_TESTS must physically exist on disk."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import build_bundle  # type: ignore[import]
+    missing = [str(p) for p in build_bundle.SECTION_4_TESTS if not p.exists()]
+    assert missing == [], f"Listed test files not found on disk: {missing}"

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import logging
 
 from .constants import DEFAULT_LIMIT, DEFAULT_SEARCH_TERM
 from .exceptions import APIError, RateLimitError, ScraperError
-from .models import TrackerResult
-from .protocols import ProductProvider
+from .models import Product, TrackerResult
+from .protocols import ProductProvider, TaggingService
 
 _log = logging.getLogger(__name__)
 
@@ -24,8 +25,17 @@ class AIProductTracker:
     marks retry-safe failures. Unexpected failures may still propagate.
     """
 
-    def __init__(self, *, provider: ProductProvider) -> None:
+    class _NullTaggingService:
+        def categorize(self, product: Product) -> tuple[str, ...]:
+            return ()
+
+    def __init__(self, *, provider: ProductProvider, tagging_service: TaggingService | None = None) -> None:
         self._provider = provider
+        self._tagger = tagging_service or self._NullTaggingService()
+
+    def _enrich_product(self, product: Product) -> Product:
+        tags = self._tagger.categorize(product)
+        return replace(product, tags=tags)
 
     def _failure_result(self, exc: Exception, *, search_term: str, limit: int) -> TrackerResult:
         if isinstance(exc, RateLimitError):
@@ -49,8 +59,9 @@ class AIProductTracker:
         """Delegate to provider; map known domain exceptions to TrackerResult failures."""
         try:
             products = self._provider.fetch_products(search_term=search_term, limit=limit)
+            enriched = [self._enrich_product(product) for product in products]
             return TrackerResult.success(
-                products,
+                enriched,
                 source=self._provider.source_name,
                 search_term=search_term,
                 limit=limit,

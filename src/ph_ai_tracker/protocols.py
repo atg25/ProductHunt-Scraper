@@ -34,6 +34,14 @@ class ProductProvider(Protocol):
         ...
 
 
+@runtime_checkable
+class TaggingService(Protocol):
+    """Abstraction for product tag enrichment."""
+
+    def categorize(self, product: Product) -> tuple[str, ...]:
+        ...
+
+
 class FallbackProvider:
     """Try *api_provider* first; fall back to *scraper_provider* on any exception.
 

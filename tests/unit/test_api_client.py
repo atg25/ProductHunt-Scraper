@@ -1,5 +1,6 @@
 import httpx
 import pytest
+from datetime import datetime, timedelta, timezone
 
 from ph_ai_tracker.api_client import ProductHuntAPI
 from ph_ai_tracker.exceptions import APIError, RateLimitError
@@ -312,3 +313,22 @@ def test_passes_loose_filter_rejects_mismatch() -> None:
 
     p = Product(name="Tracker Pro", tagline="Insights")
     assert not ProductHuntAPI._passes_loose_filter(p, "zzz")
+
+
+def test_node_to_product_parses_created_at() -> None:
+    node = {
+        "name": "AlphaAI",
+        "createdAt": "2026-02-25T12:00:00Z",
+        "votesCount": 10,
+        "topics": {"edges": []},
+    }
+    product = ProductHuntAPI._node_to_product(node)
+    assert product.posted_at == datetime(2026, 2, 25, 12, 0, 0, tzinfo=timezone.utc)
+
+
+def test_filter_recent_products_keeps_only_last_week() -> None:
+    now = datetime.now(timezone.utc)
+    recent = Product(name="Recent", posted_at=now - timedelta(days=2))
+    old = Product(name="Old", posted_at=now - timedelta(days=15))
+    out = ProductHuntAPI._filter_recent_products([recent, old], days=7)
+    assert out == [recent]

@@ -31,6 +31,19 @@ class _FakeProvider:
         self.closed = True
 
 
+class _Tagger:
+    def __init__(self, *, tags: tuple[str, ...] = ("ai",), raises: Exception | None = None) -> None:
+        self._tags = tags
+        self._raises = raises
+        self.calls = 0
+
+    def categorize(self, product: Product) -> tuple[str, ...]:
+        self.calls += 1
+        if self._raises is not None:
+            raise self._raises
+        return self._tags
+
+
 # Core delegation tests — tracker should delegate entirely to provider
 
 def test_tracker_success_returns_products() -> None:
@@ -126,3 +139,61 @@ def test_tracker_does_not_import_adapters() -> None:
         if isinstance(node, ast.ImportFrom) and node.module:
             assert "api_client" not in node.module
             assert "scraper" not in node.module
+
+
+def test_get_products_enriches_products_with_tags() -> None:
+    provider = _FakeProvider(products=[Product(name="Alpha")])
+    tracker = AIProductTracker(provider=provider, tagging_service=_Tagger(tags=("ai", "tool")))
+    result = tracker.get_products()
+    assert result.products[0].tags == ("ai", "tool")
+
+
+def test_get_products_uses_default_no_tags_without_tagger() -> None:
+    provider = _FakeProvider(products=[Product(name="Alpha")])
+    result = AIProductTracker(provider=provider).get_products()
+    assert result.products[0].tags == ()
+
+
+def test_enrich_product_propagates_tagger_exception() -> None:
+    """If a TaggingService raises, the exception must propagate — not be swallowed."""
+    import pytest as _pytest
+    provider = _FakeProvider(products=[Product(name="Alpha")])
+    tracker = AIProductTracker(provider=provider, tagging_service=_Tagger(raises=RuntimeError("boom")))
+    with _pytest.raises(RuntimeError, match="boom"):
+        tracker._enrich_product(Product(name="Alpha"))
+
+
+def test_get_products_propagates_tagger_exception() -> None:
+    """A raising TaggingService must bubble through get_products."""
+    import pytest as _pytest
+    provider = _FakeProvider(products=[Product(name="Alpha")])
+    tracker = AIProductTracker(provider=provider, tagging_service=_Tagger(raises=RuntimeError("boom")))
+    with _pytest.raises(RuntimeError, match="boom"):
+        tracker.get_products()
+
+
+def test_tagging_not_called_on_fetch_failure() -> None:
+    tagger = _Tagger(tags=("ai",))
+    tracker = AIProductTracker(provider=_FakeProvider(raises=APIError("bad")), tagging_service=tagger)
+    result = tracker.get_products()
+    assert result.error is not None
+    assert tagger.calls == 0
+
+
+def test_enrichment_produces_new_product_instances() -> None:
+    original = Product(name="Alpha", tagline="tag", description="desc", votes_count=1, url="https://x", topics=("AI",))
+    result = AIProductTracker(provider=_FakeProvider(products=[original]), tagging_service=_Tagger(tags=("ai",))).get_products()
+    assert result.products[0] is not original
+    assert original.tags == ()
+    assert result.products[0].tags == ("ai",)
+
+
+def test_enrichment_preserves_non_tag_fields() -> None:
+    original = Product(name="Alpha", tagline="tag", description="desc", votes_count=7, url="https://x", topics=("AI", "ML"))
+    enriched = AIProductTracker(provider=_FakeProvider(products=[original]), tagging_service=_Tagger(tags=("ai",))).get_products().products[0]
+    assert enriched.name == original.name
+    assert enriched.tagline == original.tagline
+    assert enriched.description == original.description
+    assert enriched.votes_count == original.votes_count
+    assert enriched.url == original.url
+    assert enriched.topics == original.topics

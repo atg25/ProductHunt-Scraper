@@ -61,3 +61,16 @@ def test_bundle_regeneration_is_idempotent() -> None:
     sha2 = _sha256(BUNDLE_PATH)
 
     assert sha1 == sha2, "Bundle regeneration is not idempotent (content differs between runs)"
+
+
+# Sprint 60 — tagging.py and formatters.py must appear in bundle content
+
+def test_tagging_and_formatter_in_bundle() -> None:
+    subprocess.run(["make", "bundle"], cwd=REPO_ROOT, check=True, capture_output=True)
+    bundle_text = BUNDLE_PATH.read_text(encoding="utf-8", errors="replace")
+    assert "FILE: src/ph_ai_tracker/tagging.py" in bundle_text, (
+        "tagging.py not found in bundle — add it to SECTION_3_PRODUCTION in build_bundle.py"
+    )
+    assert "FILE: src/ph_ai_tracker/formatters.py" in bundle_text, (
+        "formatters.py not found in bundle — add it to SECTION_3_PRODUCTION in build_bundle.py"
+    )

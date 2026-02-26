@@ -1,5 +1,6 @@
 import httpx
 import pytest
+from datetime import datetime, timedelta, timezone
 
 from ph_ai_tracker.scraper import ProductHuntScraper, ScraperConfig
 from ph_ai_tracker.exceptions import ScraperError
@@ -16,6 +17,32 @@ def test_scrape_parses_next_data(scraper_html: str) -> None:
         assert len(products) == 1
         assert products[0].name == "AlphaAI"
         assert products[0].votes_count == 123
+        assert products[0].posted_at is not None
+    finally:
+        s.close()
+
+
+def test_scrape_filters_out_products_older_than_week() -> None:
+    old = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat().replace("+00:00", "Z")
+    recent = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat().replace("+00:00", "Z")
+    html = f"""
+    <html><body>
+      <script id="__NEXT_DATA__" type="application/json">{{
+        "props": {{"pageProps": {{"seed": {{"posts": [
+          {{"name": "OldAI", "tagline": "old", "createdAt": "{old}", "votesCount": 200, "url": "https://www.producthunt.com/posts/oldai"}},
+          {{"name": "RecentAI", "tagline": "recent", "createdAt": "{recent}", "votesCount": 100, "url": "https://www.producthunt.com/posts/recentai"}}
+        ]}}}}}}
+      }}</script>
+    </body></html>
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=html)
+
+    s = ProductHuntScraper(transport=httpx.MockTransport(handler))
+    try:
+        products = s.scrape_ai_products(search_term="AI", limit=10)
+        assert [product.name for product in products] == ["RecentAI"]
     finally:
         s.close()
 
@@ -46,7 +73,7 @@ def test_scrape_enriches_description_from_product_page() -> None:
     """
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.startswith("/topics/"):
+        if request.url.path == "/":
             return httpx.Response(200, text=topic_html)
         if request.url.path == "/products/alphaai":
             return httpx.Response(200, text=product_html)
@@ -119,7 +146,7 @@ def test_scrape_ai_products_enrichment_skipped_when_disabled() -> None:
     """
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if "/topics/" in str(request.url):
+        if request.url.path == "/":
             return httpx.Response(200, text=dom_html)
         # Any product page hit means enrichment ran — fail immediately.
         raise AssertionError("Product-page enrichment should not have been called")

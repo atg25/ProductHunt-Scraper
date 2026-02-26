@@ -23,6 +23,7 @@ stream without waiting for an alert on missing data.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace as _dc_replace
+from datetime import datetime, timedelta, timezone
 from typing import Any
 import json
 import logging
@@ -32,6 +33,7 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup, FeatureNotFound
 
+from .constants import DEFAULT_LIMIT, DEFAULT_RECENT_DAYS
 from .exceptions import ScraperError
 from .models import Product
 
@@ -64,13 +66,23 @@ def _extract_next_topics(raw: Any) -> tuple[str, ...]:
     return tuple(t.get("name") for t in raw if isinstance(t, dict) and t.get("name"))
 
 
+def _parse_posted_at(raw: Any) -> datetime | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+
+
 @dataclass(frozen=True, slots=True)
 class ScraperConfig:
     """Immutable configuration for ``ProductHuntScraper``."""
 
     base_url: str = "https://www.producthunt.com"
     timeout_seconds: float = 10.0
-    ai_path: str = "/topics/artificial-intelligence"
+    ai_path: str = "/"
     enrich_products: bool = True
     max_enrich: int = 10
 
@@ -114,12 +126,22 @@ class NextDataExtractor:
         return list(unique.values())
 
     @staticmethod
+    def _posted_at_from_node(obj: dict[str, Any]) -> datetime | None:
+        return (
+            _parse_posted_at(obj.get("createdAt"))
+            or _parse_posted_at(obj.get("postedAt"))
+            or _parse_posted_at(obj.get("releasedAt"))
+            or _parse_posted_at(obj.get("created_at"))
+        )
+
+    @staticmethod
     def _product_from_node(obj: dict[str, Any]) -> Product | None:
         """Build a ``Product`` from a JSON dict node, or return ``None``."""
         name = obj.get("name")
         if not isinstance(name, str) or not name.strip():
             return None
-        tagline, description, votes = obj.get("tagline"), obj.get("description"), obj.get("votesCount")
+        tagline, description = obj.get("tagline"), obj.get("description")
+        votes = obj.get("votesCount")
         if tagline is None and description is None and votes is None:
             return None
         raw_url = obj.get("url") or obj.get("website")
@@ -130,6 +152,7 @@ class NextDataExtractor:
             votes_count=_coerce_votes(votes),
             url=raw_url if isinstance(raw_url, str) else None,
             topics=_extract_next_topics(obj.get("topics")),
+            posted_at=NextDataExtractor._posted_at_from_node(obj),
         )
 
     @staticmethod
@@ -220,9 +243,14 @@ class ProductEnricher:
             return product
         description = product.description or self._og_description(_make_soup(resp.text))
         votes_count = product.votes_count or self._extract_votes(resp.text)
-        if description == product.description and votes_count == product.votes_count:
+        posted_at = product.posted_at or self._extract_posted_at(resp.text)
+        if (
+            description == product.description
+            and votes_count == product.votes_count
+            and posted_at == product.posted_at
+        ):
             return product
-        return _dc_replace(product, description=description, votes_count=votes_count)
+        return _dc_replace(product, description=description, votes_count=votes_count, posted_at=posted_at)
 
     def _fetch_product_page(self, url: str) -> httpx.Response | None:
         """GET *url* and return the response; return ``None`` on network error."""
@@ -253,6 +281,14 @@ class ProductEnricher:
             return max(int(m) for m in matches)
         except ValueError:
             return 0
+
+    @staticmethod
+    def _extract_posted_at(html: str) -> datetime | None:
+        """Return parsed createdAt timestamp from product-page JSON when present."""
+        match = re.search(r'"createdAt"\s*:\s*"([^"]+)"', html)
+        if not match:
+            return None
+        return _parse_posted_at(match.group(1))
 
 
 class ProductHuntScraper:
@@ -317,14 +353,23 @@ class ProductHuntScraper:
             products = []
         return products
 
-    def _apply_filter(
-        self, products: list[Product], search_term: str, limit: int
-    ) -> list[Product]:
+    def _apply_filter(self, products: list[Product], search_term: str) -> list[Product]:
         st = (search_term or "").strip().lower()
         has_rich = any((p.tagline or p.description or p.topics) for p in products)
         if st and has_rich:
             products = [p for p in products if st in p.searchable_text]
-        return products[: max(int(limit), 1)]
+        return products
+
+    @staticmethod
+    def _filter_recent(products: list[Product], *, days: int) -> list[Product]:
+        if not products or not any(p.posted_at is not None for p in products):
+            return products
+        cutoff = datetime.now(timezone.utc) - timedelta(days=max(int(days), 1))
+        return [
+            product
+            for product in products
+            if product.posted_at is not None and product.posted_at >= cutoff
+        ]
 
     def _maybe_enrich(self, products: list[Product]) -> list[Product]:
         if not self._config.enrich_products:
@@ -344,7 +389,7 @@ class ProductHuntScraper:
             return sorted(products, key=lambda p: (p.votes_count, p.name), reverse=True)
         return products
 
-    def scrape_ai_products(self, *, search_term: str = "AI", limit: int = 20) -> list[Product]:
+    def scrape_ai_products(self, *, search_term: str = "AI", limit: int = DEFAULT_LIMIT) -> list[Product]:
         """Fetch and return a list of AI-related products from Product Hunt.
 
         Raises:
@@ -352,8 +397,10 @@ class ProductHuntScraper:
         """
         html     = self._fetch_html()
         products = self._extract_products(html)
-        products = self._apply_filter(products, search_term, limit)
+        products = self._apply_filter(products, search_term)
         products = self._maybe_enrich(products)
-        return self._sort_by_votes(products)
+        products = self._filter_recent(products, days=DEFAULT_RECENT_DAYS)
+        products = self._sort_by_votes(products)
+        return products[: max(int(limit), 1)]
 
 
