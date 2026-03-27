@@ -366,7 +366,7 @@ Cron helper scripts are in `scripts/cron/`.
 
 ## Docker deployment
 
-Build and start the container (runs the scheduler on the configured cron schedule):
+Build and start the containers (always-on HTTP API + scheduler on cron):
 
 ```bash
 docker compose up -d --build
@@ -375,7 +375,49 @@ docker compose up -d --build
 Stream logs:
 
 ```bash
-docker compose logs -f scheduler
+docker compose logs -f api scheduler
+```
+
+API base URL:
+
+```text
+http://127.0.0.1:8000
+```
+
+Example request:
+
+```bash
+curl "http://127.0.0.1:8000/products/search?q=AI&limit=10&strategy=auto"
+```
+
+### Existing DigitalOcean Droplet (one-command deploy)
+
+If you already have a droplet running other workloads, deploy this app in its
+own folder and Compose project:
+
+```bash
+ssh <user>@<droplet-ip>
+mkdir -p /opt/ph-ai-tracker
+cd /opt/ph-ai-tracker
+git clone https://github.com/atg25/ProductHunt-Scraper.git .
+cp .env.example .env
+# Edit .env and set PRODUCTHUNT_TOKEN
+bash scripts/deploy_existing_droplet.sh
+```
+
+What the script does:
+
+- updates/pulls latest `main`
+- validates `PRODUCTHUNT_TOKEN` exists in `.env`
+- auto-switches to `API_PORT=8001` when port `8000` is already in use
+- starts `api` and `scheduler` with `docker compose -p phtracker up -d --build`
+
+Useful follow-up commands:
+
+```bash
+docker compose -p phtracker ps
+docker compose -p phtracker logs -f api scheduler
+curl "http://127.0.0.1:${API_PORT:-8000}/health"
 ```
 
 Stop (data is preserved):

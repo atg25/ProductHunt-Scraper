@@ -1,6 +1,6 @@
 BUNDLE_FILE := codebase_review_bundle.txt
 
-.PHONY: test run runner serve demo db-tables db-verify docker-build docker-up docker-down docker-logs bundle
+.PHONY: test run runner serve demo db-tables db-verify docker-build docker-up docker-down docker-logs deploy-droplet bundle
 
 test:
 	poetry run pytest
@@ -33,7 +33,10 @@ docker-down:
 	docker compose down
 
 docker-logs:
-	docker compose logs -f scheduler
+	docker compose logs -f api scheduler
+
+deploy-droplet:
+	bash scripts/deploy_existing_droplet.sh
 
 bundle:
 	@echo "Building Uncle Bob review bundle…"

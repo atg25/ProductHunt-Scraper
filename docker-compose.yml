@@ -1,4 +1,29 @@
 services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ph-ai-tracker-api
+    restart: unless-stopped
+    entrypoint:
+      - python
+      - -m
+      - uvicorn
+      - ph_ai_tracker.api:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    environment:
+      PH_AI_DB_PATH: /data/ph_ai_tracker.db
+      PRODUCTHUNT_TOKEN: ${PRODUCTHUNT_TOKEN:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ph_ai_tracker_data:/data
+
   scheduler:
     build:
       context: .
